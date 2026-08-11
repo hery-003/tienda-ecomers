@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { getAdmin, saveAdmin } from "./store";
 
@@ -37,10 +38,6 @@ export function clearRateLimit(ip: string): void {
   attempts.delete(ip);
 }
 
-function hashPassword(password: string, salt: string): string {
-  return createHash("sha256").update(salt + password).digest("hex");
-}
-
 function sha256(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
@@ -52,21 +49,33 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ba, bb);
 }
 
+function isLegacyHash(hash: string): boolean {
+  return /^[0-9a-f]{64}$/.test(hash);
+}
+
 export async function ensureAdmin(): Promise<{ ok: boolean; message: string }> {
   const admin = await getAdmin();
   if (admin.passwordHash) return { ok: true, message: "" };
-  const salt = randomBytes(16).toString("hex");
-  await saveAdmin({ passwordHash: hashPassword("admin123", salt), salt });
+  const hash = await bcrypt.hash("admin123", 10);
+  await saveAdmin({ passwordHash: hash, salt: "" });
   return { ok: true, message: "Contraseña inicial creada: admin123. Cámbiala después de entrar." };
 }
 
 export async function login(password: string): Promise<{ ok: boolean; message: string }> {
   await ensureAdmin();
   const admin = await getAdmin();
-  if (safeEqual(hashPassword(password, admin.salt), admin.passwordHash)) {
-    return { ok: true, message: "" };
+  if (isLegacyHash(admin.passwordHash)) {
+    const legacyOk = safeEqual(
+      sha256(admin.salt + password),
+      admin.passwordHash
+    );
+    if (!legacyOk) return { ok: false, message: "Contraseña incorrecta" };
+    const hash = await bcrypt.hash(password, 10);
+    await saveAdmin({ passwordHash: hash, salt: "" });
+    return { ok: true, message: "Contraseña actualizada a bcrypt" };
   }
-  return { ok: false, message: "Contraseña incorrecta" };
+  const ok = await bcrypt.compare(password, admin.passwordHash);
+  return ok ? { ok: true, message: "" } : { ok: false, message: "Contraseña incorrecta" };
 }
 
 export function createSessionToken(): string {

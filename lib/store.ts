@@ -245,7 +245,10 @@ async function readJSON<T>(name: string, fallback: T): Promise<T> {
 
 async function writeJSON(name: string, value: unknown): Promise<void> {
   await ensureDataDir();
-  await fs.writeFile(file(name), JSON.stringify(value, null, 2), "utf-8");
+  const target = file(name);
+  const temp = `${target}.tmp`;
+  await fs.writeFile(temp, JSON.stringify(value, null, 2), "utf-8");
+  await fs.rename(temp, target);
 }
 
 export async function getProducts(): Promise<Product[]> {
