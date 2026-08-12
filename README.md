@@ -76,6 +76,7 @@ Usa un proxy inverso (Nginx/Caddy) hacia el puerto 3000 con HTTPS. En `next.conf
 # Construir imagen
 docker build -t mitienda .
 # Ejecutar con volumen persistente para data/
+# (la imagen siembra el catálogo automáticamente la primera vez)
 docker run -d -p 3000:3000 -e AUTH_SECRET=secreto \
   -v mitienda-data:/app/data mitienda
 ```
@@ -87,8 +88,7 @@ docker run -d -p 3000:3000 -e AUTH_SECRET=secreto \
 - `lib/` — capa de datos (`store.ts`, `auth.ts`, `productImage.ts`, `db.ts`)
 - `data/` — base de datos SQLite (`store.db`) y JSON legacy de importación (gitignoreado)
 - `prisma/` — esquema de datos (`schema.prisma`)
-- `scripts/` — `seed.mjs` para inicializar la BD
-- `legacy-backup/` — versión estática original de referencia
+- `scripts/` — `seed.mjs` + `defaults.json` (catálogo inicial) para inicializar la BD
 
 ## API
 
