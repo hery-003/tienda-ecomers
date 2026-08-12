@@ -25,7 +25,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["192.168.100.250", "localhost", "127.0.0.1"],
+  allowedDevOrigins: ["localhost", "127.0.0.1"],
   serverExternalPackages: ["@prisma/client"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

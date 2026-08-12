@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import { prisma } from "./db";
 import type { Color, Product } from "./productImage";
 
@@ -296,7 +297,7 @@ export async function computeOrder(body: RawOrderBody): Promise<Order> {
   const total = Math.max(0, subtotal - discount + shipping);
 
   return {
-    id: `PED-${Date.now().toString(36).toUpperCase()}`,
+    id: `PED-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`,
     date: new Date().toISOString(),
     items,
     coupon,
