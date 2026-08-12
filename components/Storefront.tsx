@@ -161,6 +161,12 @@ export default function Storefront({
     window.addEventListener("scroll", onScroll, { passive: true });
     back?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 
+    // Header: sombra al hacer scroll
+    const header = document.querySelector(".header");
+    const onHeaderScroll = () => header?.classList.toggle("scrolled", window.scrollY > 10);
+    window.addEventListener("scroll", onHeaderScroll, { passive: true });
+    onHeaderScroll();
+
     // Scroll progress
     const progress = document.getElementById("scroll-progress");
     const onScrollProgress = () => {
@@ -176,6 +182,7 @@ export default function Storefront({
       window.removeEventListener("load", onLoad);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScrollProgress);
+      window.removeEventListener("scroll", onHeaderScroll);
       if (stepTimer) clearTimeout(stepTimer);
       clearTimeout(hideTimer);
       glowCleanup?.();
