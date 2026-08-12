@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProducts, saveProducts } from "@/lib/store";
+import { getProducts, saveProducts, sanitizeProductInput } from "@/lib/store";
 import { isAuthed } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -10,13 +10,20 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/products/[id
   }
   const { id } = await ctx.params;
   const numId = Number(id);
+  if (!Number.isFinite(numId)) {
+    return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  }
   const body = await req.json().catch(() => ({}));
   const products = await getProducts();
   const idx = products.findIndex((p) => p.id === numId);
   if (idx === -1) {
     return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
   }
-  products[idx] = { ...body, id: numId };
+  const result = sanitizeProductInput(body, numId);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+  products[idx] = result.product;
   await saveProducts(products);
   return NextResponse.json(products[idx]);
 }

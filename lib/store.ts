@@ -283,7 +283,8 @@ export async function computeOrder(body: RawOrderBody): Promise<Order> {
     const c = (await getCoupons())[code];
     if (c && (c.type === "percent" || c.type === "fixed") && c.value >= 0) {
       coupon = { code, type: c.type, value: c.value };
-      discount = c.type === "fixed" ? Math.min(c.value, subtotal) : (subtotal * c.value) / 100;
+      discount =
+        c.type === "fixed" ? Math.min(c.value, subtotal) : Math.min(subtotal, (subtotal * c.value) / 100);
     }
   }
 
@@ -346,4 +347,50 @@ export async function saveAdmin(admin: AdminConfig): Promise<void> {
 
 export function nextProductId(products: Product[]): number {
   return products.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
+}
+
+export function sanitizeProductInput(body: unknown, id: number): { ok: true; product: Product } | { ok: false; error: string } {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const name = String(raw.name ?? "").trim();
+  const brand = String(raw.brand ?? "").trim();
+  const category = String(raw.category ?? "").trim();
+  const price = Number(raw.price);
+  if (!name || !brand || !category || !Number.isFinite(price) || price < 0) {
+    return { ok: false, error: "Nombre, marca, categoría y precio son requeridos" };
+  }
+  const oldPrice = raw.oldPrice == null || raw.oldPrice === "" ? null : Number(raw.oldPrice);
+  if (oldPrice !== null && (!Number.isFinite(oldPrice) || oldPrice < 0)) {
+    return { ok: false, error: "Precio anterior inválido" };
+  }
+  const stock = raw.stock == null || raw.stock === "" ? 0 : Math.trunc(Number(raw.stock));
+  if (!Number.isFinite(stock) || stock < 0) {
+    return { ok: false, error: "Stock inválido" };
+  }
+  if (!Array.isArray(raw.sizes) || raw.sizes.some((s) => typeof s !== "string")) {
+    return { ok: false, error: "Tallas inválidas" };
+  }
+  if (!Array.isArray(raw.colors) || raw.colors.some((c) => typeof c !== "object" || c === null)) {
+    return { ok: false, error: "Colores inválidos" };
+  }
+  const colors = (raw.colors as Record<string, unknown>[]).map((c) => ({
+    name: String(c.name ?? "").trim() || "Color",
+    hex: String(c.hex ?? "").trim()
+  }));
+  return {
+    ok: true,
+    product: {
+      id,
+      name,
+      brand,
+      category,
+      image: String(raw.image ?? "").trim(),
+      price,
+      oldPrice,
+      badge: raw.badge ? String(raw.badge).trim() : null,
+      desc: String(raw.desc ?? "").trim(),
+      sizes: raw.sizes as string[],
+      colors,
+      stock
+    }
+  };
 }

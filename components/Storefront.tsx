@@ -281,7 +281,7 @@ export default function Storefront({
   const discount = useMemo(() => {
     if (!cartCoupon) return 0;
     if (cartCoupon.type === "fixed") return Math.min(cartCoupon.value, subtotal);
-    return (subtotal * cartCoupon.value) / 100;
+    return Math.min(subtotal, (subtotal * cartCoupon.value) / 100);
   }, [cartCoupon, subtotal]);
 
   const shippingFor = useCallback(

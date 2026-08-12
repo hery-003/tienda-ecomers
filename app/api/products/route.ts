@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProducts, saveProducts, nextProductId } from "@/lib/store";
+import { getProducts, saveProducts, nextProductId, sanitizeProductInput } from "@/lib/store";
 import { isAuthed } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const products = await getProducts();
   const id = nextProductId(products);
-  const product = { ...body, id };
+  const result = sanitizeProductInput(body, id);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+  const product = result.product;
   products.push(product);
   await saveProducts(products);
   return NextResponse.json(product, { status: 201 });
