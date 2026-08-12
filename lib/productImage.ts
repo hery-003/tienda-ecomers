@@ -44,14 +44,14 @@ export function luminance(hex: string): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
-const tshirt = (c: string, d: string, k: string) => `
+const tshirt = (c: string, d: string) => `
   <path d="M78 64 L34 48 L26 98 L72 92 Z" fill="${d}"/>
   <path d="M122 64 L166 48 L174 98 L128 92 Z" fill="${d}"/>
   <path d="M78 64 L122 64 L116 158 L84 158 Z" fill="${c}"/>
   <path d="M86 64 Q100 82 114 64 L114 54 Q100 74 86 54 Z" fill="${d}"/>
   <path d="M84 148 L116 148 L116 158 L84 158 Z" fill="${d}"/>`;
 
-const boxy = (c: string, d: string, k: string) => `
+const boxy = (c: string, d: string) => `
   <path d="M76 62 L26 46 L18 96 L70 90 Z" fill="${d}"/>
   <path d="M124 62 L174 46 L182 96 L130 90 Z" fill="${d}"/>
   <path d="M76 62 L124 62 L132 156 L68 156 Z" fill="${c}"/>
@@ -136,10 +136,10 @@ export function productImage(category = "", color = "#3b4d61"): string {
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">` +
     `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
-    `<stop offset="0" stop-color="#1d1d22"/><stop offset="1" stop-color="#111114"/>` +
+    `<stop offset="0" stop-color="#faf2ec"/><stop offset="1" stop-color="#fdf9f7"/>` +
     `</linearGradient></defs>` +
     `<rect width="200" height="200" fill="url(#g)"/>` +
-    `<ellipse cx="100" cy="162" rx="52" ry="7" fill="rgba(0,0,0,0.35)"/>` +
+    `<ellipse cx="100" cy="162" rx="52" ry="7" fill="rgba(190,150,140,0.18)"/>` +
     render(color, dark, darker) +
     `</svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

@@ -10,13 +10,13 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/products/[id
   }
   const { id } = await ctx.params;
   const numId = Number(id);
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const products = await getProducts();
   const idx = products.findIndex((p) => p.id === numId);
   if (idx === -1) {
     return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
   }
-  products[idx] = { id: numId, ...body };
+  products[idx] = { ...body, id: numId };
   await saveProducts(products);
   return NextResponse.json(products[idx]);
 }

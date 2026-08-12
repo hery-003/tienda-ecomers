@@ -39,8 +39,8 @@ function Loading() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0b0b0d",
-        color: "#9b9ba1",
+        background: "#fdf9f7",
+        color: "#ab9b8d",
         fontFamily: "Segoe UI, system-ui, sans-serif"
       }}
     >

@@ -22,6 +22,8 @@ Crea el archivo `.env.local` en la raíz:
 AUTH_SECRET=genera-un-secreto-aleatorio
 # URL pública de tu sitio (para sitemap y metadata)
 NEXT_PUBLIC_SITE_URL=https://tudominio.com
+# (Opcional) Contraseña inicial del admin en el primer arranque. Si no se define, usa "admin123".
+ADMIN_PASSWORD=contraseña-fuerte
 ```
 
 Para generar un secreto aleatorio:
@@ -41,7 +43,7 @@ npm run dev
 
 ## Producción (VPS)
 
-**Importante:** los datos (productos, pedidos, configuración) se guardan en archivos JSON dentro de `data/`. Esto **no funciona en Vercel serverless** (el sistema de archivos no persiste). Necesitas un servidor propio (VPS) o contenedor con disco persistente.
+**Importante:** los datos (productos, pedidos, configuración, administrador) se guardan en una base **SQLite** (`data/store.db`) vía Prisma. Esto **no funciona en Vercel serverless** (el sistema de archivos no persiste). Necesitas un servidor propio (VPS) o contenedor con disco persistente.
 
 ```bash
 # 1. Compilar
@@ -62,6 +64,12 @@ pm2 startup
 
 Usa un proxy inverso (Nginx/Caddy) hacia el puerto 3000 con HTTPS. En `next.config.ts` usa `output: "standalone"` si prefieres el artefacto autocontenido.
 
+**Seguridad:**
+- El rate-limit del login (5 intentos en 15 min) se basa en las cabeceras `x-real-ip` / `x-forwarded-for`. Debe estar detrás de un proxy inverso que **sobrescriba** esas cabeceras; si el puerto 3000 queda expuesto directo, cualquiera puede falsearlas.
+- Se envían cabeceras de seguridad (CSP, `X-Frame-Options`, etc.) desde `next.config.ts`. Activa HSTS y HTTPS en el proxy (p. ej. `Strict-Transport-Security: max-age=63072000`).
+- Los cupones se exponen públicamente (`GET /api/coupons`) porque la tienda los valida en el navegador; cualquier visitante puede aplicar un cupón válido. Quien crea cupones debe asumir que son públicos.
+- Backups periódicos de `data/store.db`.
+
 ## Despliegue con Docker (opcional)
 
 ```bash
@@ -76,8 +84,10 @@ docker run -d -p 3000:3000 -e AUTH_SECRET=secreto \
 
 - `app/` — páginas (`/` tienda, `/admin` panel) y API routes (`app/api/`)
 - `components/` — componentes client (tienda, admin)
-- `lib/` — capa de datos (`store.ts`, `auth.ts`, `productImage.ts`)
-- `data/` — archivos JSON persistentes (gitignoreado)
+- `lib/` — capa de datos (`store.ts`, `auth.ts`, `productImage.ts`, `db.ts`)
+- `data/` — base de datos SQLite (`store.db`) y JSON legacy de importación (gitignoreado)
+- `prisma/` — esquema de datos (`schema.prisma`)
+- `scripts/` — `seed.mjs` para inicializar la BD
 - `legacy-backup/` — versión estática original de referencia
 
 ## API

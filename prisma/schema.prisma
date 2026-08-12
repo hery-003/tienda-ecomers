@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id       Int    @id
+  name     String
+  brand    String
+  category String
+  image    String @default("")
+  price    Float
+  oldPrice Float?
+  badge    String?
+  desc     String @default("")
+  sizes    Json
+  colors   Json
+  stock    Int    @default(0)
+
+  @@index([category])
+}
+
+model StoreConfig {
+  id       Int    @id @default(1)
+  brand    String
+  whatsapp String
+  currency String
+  shipping Json   @default("[]")
+}
+
+model Coupon {
+  code  String @id
+  type  String
+  value Float
+}
+
+model Order {
+  id            String   @id
+  date          DateTime
+  items         Json
+  coupon        Json?
+  subtotal      Float
+  discount      Float
+  shipping      Float    @default(0)
+  total         Float
+  status        String   @default("pendiente")
+  customer      Json
+  stockRestored Boolean  @default(false)
+}
+
+model Admin {
+  id           Int    @id @default(1)
+  passwordHash String
+  salt         String @default("")
+}

@@ -56,9 +56,10 @@ function isLegacyHash(hash: string): boolean {
 export async function ensureAdmin(): Promise<{ ok: boolean; message: string }> {
   const admin = await getAdmin();
   if (admin.passwordHash) return { ok: true, message: "" };
-  const hash = await bcrypt.hash("admin123", 10);
+  const initial = process.env.ADMIN_PASSWORD || "admin123";
+  const hash = await bcrypt.hash(initial, 10);
   await saveAdmin({ passwordHash: hash, salt: "" });
-  return { ok: true, message: "Contraseña inicial creada: admin123. Cámbiala después de entrar." };
+  return { ok: true, message: "Contraseña inicial creada. Cámbiala después de entrar." };
 }
 
 export async function login(password: string): Promise<{ ok: boolean; message: string }> {
@@ -78,10 +79,16 @@ export async function login(password: string): Promise<{ ok: boolean; message: s
   return ok ? { ok: true, message: "" } : { ok: false, message: "Contraseña incorrecta" };
 }
 
+function authSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error("AUTH_SECRET no está configurado en el entorno");
+  return secret;
+}
+
 export function createSessionToken(): string {
   const token = randomBytes(32).toString("hex");
   const exp = Date.now() + SESSION_TTL * 1000;
-  const sig = sha256(`${token}.${exp}.${process.env.AUTH_SECRET || "mitienda-local-secret"}`);
+  const sig = sha256(`${token}.${exp}.${authSecret()}`);
   return `${token}.${exp}.${sig}`;
 }
 
@@ -93,12 +100,7 @@ export async function isAuthed(): Promise<boolean> {
   if (!token || !expStr || !sig) return false;
   const exp = Number(expStr);
   if (!Number.isFinite(exp) || exp < Date.now()) return false;
-  const expected = sha256(`${token}.${exp}.${process.env.AUTH_SECRET || "mitienda-local-secret"}`);
+  const expected = sha256(`${token}.${exp}.${authSecret()}`);
   if (!safeEqual(sig, expected)) return false;
   return true;
-}
-
-export async function logout(): Promise<void> {
-  const store = await cookies();
-  store.delete(AUTH_COOKIE);
 }

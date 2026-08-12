@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { productImg, productImage } from "@/lib/productImage";
 import type { Product, Color } from "@/lib/productImage";
 import type { Config, Coupon, Order } from "@/lib/store";
+import { ORDER_STATUSES } from "@/lib/store";
 
 const esc = (s: string) =>
   String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m] as string));
@@ -20,13 +23,18 @@ export default function AdminPanel({ initialAuthed }: { initialAuthed: boolean }
     setTimeout(() => setToast(null), 2200);
   }, []);
 
+  const doLogout = useCallback(async () => {
+    await fetch("/api/logout", { method: "POST" });
+    setAuthed(false);
+  }, []);
+
   if (!authed) {
     return <Login onLogin={() => setAuthed(true)} notify={notify} />;
   }
 
   return (
     <>
-      <AdminHeader notify={notify} />
+      <AdminHeader onLogout={doLogout} />
       <main className="container admin-wrap">
         <div className="admin-tabs" id="admin-tabs">
           <button className={`admin-tab${tab === "productos" ? " active" : ""}`} onClick={() => setTab("productos")}>Productos</button>
@@ -46,18 +54,14 @@ export default function AdminPanel({ initialAuthed }: { initialAuthed: boolean }
   );
 }
 
-function AdminHeader({ notify }: { notify: (m: string) => void }) {
-  const logout = async () => {
-    await fetch("/api/logout", { method: "POST" });
-    location.href = "/admin";
-  };
+function AdminHeader({ onLogout }: { onLogout: () => void }) {
   return (
     <header className="admin-header">
       <div className="container admin-header__inner">
         <strong className="admin-brand">Panel de Administración</strong>
         <nav className="admin-nav">
-          <a href="/" className="btn btn--ghost">← Ver tienda</a>
-          <button className="btn btn--ghost" type="button" onClick={logout}>Salir</button>
+          <Link href="/" className="btn btn--ghost">← Ver tienda</Link>
+          <button className="btn btn--ghost" type="button" onClick={onLogout}>Salir</button>
         </nav>
       </div>
     </header>
@@ -138,8 +142,22 @@ function ProductsPanel({ notify }: { notify: (m: string) => void }) {
   }, []);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    let ignore = false;
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!ignore) {
+          setProducts(data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const remove = async (id: number) => {
     const p = products.find((x) => x.id === id);
@@ -157,7 +175,7 @@ function ProductsPanel({ notify }: { notify: (m: string) => void }) {
       </div>
 
       {newProduct && <ProductForm product={null} onDone={() => { setNewProduct(false); reload(); }} notify={notify} />}
-      {editing && <ProductForm product={editing} onDone={() => setEditing(null)} notify={notify} />}
+      {editing && <ProductForm product={editing} onDone={() => { setEditing(null); reload(); }} notify={notify} />}
 
       {loading ? (
         <p className="admin-empty">Cargando productos…</p>
@@ -167,7 +185,7 @@ function ProductsPanel({ notify }: { notify: (m: string) => void }) {
         <div className="admin-list" id="product-list">
           {products.map((p) => (
             <div className="admin-item" key={p.id}>
-              <img className="admin-item__img" src={productImg(p)} alt="" />
+              <Image unoptimized className="admin-item__img" src={productImg(p)} alt="" width={56} height={56} />
               <div className="admin-item__info">
                 <strong>{p.name}</strong>
                 <span>{p.brand} · {p.category} · {p.colors[0]?.name || "—"}</span>
@@ -198,19 +216,6 @@ type ProductFormData = {
   desc: string;
   sizes: string;
   stock: string;
-};
-
-const DEFAULT_FORM: ProductFormData = {
-  name: "",
-  brand: "",
-  category: "",
-  price: "",
-  oldPrice: "",
-  badge: "",
-  image: "",
-  desc: "",
-  sizes: "S, M, L, XL",
-  stock: "10"
 };
 
 function ProductForm({ product, onDone, notify }: { product: Product | null; onDone: () => void; notify: (m: string) => void }) {
@@ -373,7 +378,7 @@ function ProductForm({ product, onDone, notify }: { product: Product | null; onD
         </div>
         <div className="field field--full">
           <span>Vista previa</span>
-          <img id="product-preview" src={preview} alt="Vista previa" width={120} height={120} />
+          <Image unoptimized id="product-preview" src={preview} alt="Vista previa" width={120} height={120} />
         </div>
       </div>
       <div className="admin-actions">
@@ -398,6 +403,17 @@ function ConfigPanel({ notify }: { notify: (m: string) => void }) {
 
   const set = (k: keyof Config) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => (f ? { ...f, [k]: e.target.value } : f));
+
+  const setShippingRow = (idx: number, campo: "ciudad" | "precio", value: string | number) =>
+    setForm((f) =>
+      f ? { ...f, shipping: (f.shipping || []).map((r, i) => (i === idx ? { ...r, [campo]: value } : r)) } : f
+    );
+
+  const addShippingRow = () =>
+    setForm((f) => (f ? { ...f, shipping: [...(f.shipping || []), { ciudad: "", precio: 0 }] } : f));
+
+  const removeShippingRow = (idx: number) =>
+    setForm((f) => (f ? { ...f, shipping: (f.shipping || []).filter((_, i) => i !== idx) } : f));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,6 +470,35 @@ function ConfigPanel({ notify }: { notify: (m: string) => void }) {
           <span>Moneda</span>
           <input type="text" name="currency" placeholder="Bs" required value={form.currency} onChange={set("currency")} />
         </label>
+        <div className="field">
+          <span>Tarifas de envío (usá default para todo el resto)</span>
+          <div className="rate-rows">
+            {(form.shipping || []).map((r, i) => (
+              <div className="rate-row" key={i}>
+                <input
+                  type="text"
+                  className="rate-row__city"
+                  placeholder="Ciudad o default"
+                  aria-label="Ciudad de envío"
+                  value={r.ciudad}
+                  onChange={(e) => setShippingRow(i, "ciudad", e.target.value)}
+                />
+                <input
+                  type="number"
+                  className="rate-row__price"
+                  placeholder="0"
+                  min="0"
+                  step="0.5"
+                  aria-label="Precio de envío"
+                  value={r.precio}
+                  onChange={(e) => setShippingRow(i, "precio", Number(e.target.value) || 0)}
+                />
+                <button type="button" className="btn btn--ghost rate-row__del" aria-label="Eliminar tarifa" onClick={() => removeShippingRow(i)}>&times;</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="btn btn--ghost" onClick={addShippingRow}>+ Agregar tarifa</button>
+        </div>
         <button type="submit" className="btn btn--primary">Guardar configuración</button>
         {saved && <p className="admin-save-msg">✓ Configuración guardada</p>}
       </form>
@@ -493,8 +538,17 @@ function CouponsPanel({ notify }: { notify: (m: string) => void }) {
   }, []);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    let ignore = false;
+    fetch("/api/coupons")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!ignore) setCoupons(data);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -576,9 +630,19 @@ function CouponsPanel({ notify }: { notify: (m: string) => void }) {
 // ---------- Pedidos ----------
 function OrdersPanel({ notify }: { notify: (m: string) => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [currency, setCurrency] = useState("Bs");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((c) => {
+        if (c && c.currency) setCurrency(c.currency);
+      })
+      .catch(() => {});
+  }, []);
+
+  const reload = useCallback(() => {
     fetch("/api/orders")
       .then((r) => r.json())
       .then((data) => {
@@ -588,7 +652,26 @@ function OrdersPanel({ notify }: { notify: (m: string) => void }) {
       .finally(() => setLoading(false));
   }, [notify]);
 
-  const fmt = (n: number) => `Bs ${n.toFixed(2)}`;
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  const setStatus = async (id: string, status: string) => {
+    const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      notify(data.error || "Error al actualizar el estado");
+      return;
+    }
+    setOrders((list) => list.map((o) => (o.id === id ? { ...o, status: status as Order["status"] } : o)));
+    notify(`Pedido ${id} → ${status}`);
+  };
+
+  const fmt = (n: number) => `${currency} ${n.toFixed(2)}`;
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" });
 
@@ -618,10 +701,26 @@ function OrdersPanel({ notify }: { notify: (m: string) => void }) {
               </div>
               <div style={{ fontSize: "0.85rem" }}>
                 {o.coupon ? <span style={{ color: "var(--accent)" }}>Cupón {esc(o.coupon.code)}: -{fmt(o.discount)} · </span> : null}
+                {o.shipping > 0 ? <span>Envío: {fmt(o.shipping)} · </span> : null}
                 <strong>Total: {fmt(o.total)}</strong>
               </div>
               <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
                 🧍 {esc(o.customer.nombre)} · 📱 {esc(o.customer.telefono)} {o.customer.ciudad ? `· 📍 ${esc(o.customer.ciudad)}` : ""}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <select
+                  className="admin-select order-status__select"
+                  value={o.status}
+                  aria-label="Estado del pedido"
+                  onChange={(e) => setStatus(o.id, e.target.value)}
+                >
+                  {ORDER_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                {o.status === "cancelado" && <span className="order-status__pill order-status__pill--cancel">Cancelado</span>}
               </div>
             </div>
           ))}

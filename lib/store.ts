@@ -1,11 +1,12 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import type { Product } from "./productImage";
+import { Prisma } from "@prisma/client";
+import { prisma } from "./db";
+import type { Color, Product } from "./productImage";
 
 export type Config = {
   brand: string;
   whatsapp: string;
   currency: string;
+  shipping: { ciudad: string; precio: number }[];
 };
 
 export type Coupon = {
@@ -23,6 +24,12 @@ export type OrderItem = {
   price: number;
 };
 
+export type Customer = {
+  nombre: string;
+  telefono: string;
+  ciudad: string;
+};
+
 export type Order = {
   id: string;
   date: string;
@@ -30,271 +37,310 @@ export type Order = {
   coupon: { code: string; type: string; value: number } | null;
   subtotal: number;
   discount: number;
+  shipping: number;
   total: number;
-  customer: { nombre: string; telefono: string; ciudad: string };
+  status: OrderStatus;
+  customer: Customer;
 };
+
+export type OrderStatus = "pendiente" | "confirmado" | "enviado" | "entregado" | "cancelado";
+
+export const ORDER_STATUSES: OrderStatus[] = ["pendiente", "confirmado", "enviado", "entregado", "cancelado"];
 
 export type AdminConfig = {
   passwordHash: string;
   salt: string;
 };
 
-const DATA_DIR = path.join(process.cwd(), "data");
-
-function file(name: string): string {
-  return path.join(DATA_DIR, name);
-}
-
-export const DEFAULT_CONFIG: Config = {
-  brand: "MiTienda",
-  whatsapp: "59171234567",
-  currency: "Bs"
-};
-
-export const DEFAULT_COUPONS: Record<string, Coupon> = {
-  STREET10: { type: "percent", value: 10 },
-  DROP20: { type: "percent", value: 20 }
-};
-
-export const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "Jersey Premium Oversize",
-    brand: "AuraFit",
-    category: "Jerseys",
-    image: "https://loremflickr.com/400/500/jersey,sport?lock=11",
-    price: 79.9,
-    oldPrice: 99.0,
-    desc: "Tela dry-fit premium, corte oversize y estampado a todo color.",
-    badge: "nuevo",
-    sizes: ["S", "M", "L", "XL"],
-    stock: 12,
-    colors: [
-      { name: "Azul Marino", hex: "#3b4d61" },
-      { name: "Negro", hex: "#16161a" }
-    ]
-  },
-  {
-    id: 2,
-    name: "Hoodie Pesada Oversize",
-    brand: "AuraFit",
-    category: "Hoodies",
-    image: "https://loremflickr.com/400/500/hoodie,streetwear?lock=12",
-    price: 129.9,
-    oldPrice: null,
-    desc: "Algodón pesado 400gsm, capucha doble y bolsillo canguro.",
-    badge: "nuevo",
-    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
-    stock: 8,
-    colors: [
-      { name: "Café", hex: "#6b5b3e" },
-      { name: "Grafito", hex: "#1f1f24" }
-    ]
-  },
-  {
-    id: 3,
-    name: "Boxi Estampado Frontal",
-    brand: "YoungLA",
-    category: "Boxis",
-    image: "https://loremflickr.com/400/500/t-shirt,streetwear?lock=13",
-    price: 79.9,
-    oldPrice: 89.9,
-    desc: "Estampado serigrafía frontal, tacto suave y cómodo.",
-    badge: null,
-    sizes: ["S", "M", "L", "XL", "XXL"],
-    stock: 15,
-    colors: [
-      { name: "Bordó", hex: "#5a2d2d" },
-      { name: "Negro", hex: "#16161a" }
-    ]
-  },
-  {
-    id: 4,
-    name: "Baggi 3 Hilos Pesado",
-    brand: "YoungLA",
-    category: "Baggis",
-    image: "https://loremflickr.com/400/500/joggers,pants?lock=14",
-    price: 179.9,
-    oldPrice: null,
-    desc: "Tres hilos pesados con logo metálico y bolsillos amplios.",
-    badge: null,
-    sizes: ["S", "M", "L", "XL"],
-    stock: 6,
-    colors: [
-      { name: "Azul", hex: "#2d3e5a" },
-      { name: "Negro", hex: "#16161a" }
-    ]
-  },
-  {
-    id: 5,
-    name: "Tank Top Gym",
-    brand: "AuraFit",
-    category: "Tank tops",
-    image: "https://loremflickr.com/400/500/tank-top,gym?lock=15",
-    price: 79.9,
-    oldPrice: 89.9,
-    desc: "Sin mangas, ligero y transpirable para tus entrenamientos.",
-    badge: null,
-    sizes: ["S", "M", "L"],
-    stock: 20,
-    colors: [
-      { name: "Oliva", hex: "#4d5a2d" },
-      { name: "Negro", hex: "#16161a" }
-    ]
-  },
-  {
-    id: 6,
-    name: "Short Deportivo",
-    brand: "Breathe Divinity",
-    category: "Shorts",
-    image: "https://loremflickr.com/400/500/shorts,sport?lock=16",
-    price: 69.9,
-    oldPrice: 79.9,
-    desc: "Short con malla interior, bolsillos con cierre y tela elástica.",
-    badge: null,
-    sizes: ["S", "M", "L", "XL"],
-    stock: 10,
-    colors: [
-      { name: "Violeta", hex: "#3e2d5a" },
-      { name: "Grafito", hex: "#1f1f24" }
-    ]
-  },
-  {
-    id: 7,
-    name: "Casaca Trucker",
-    brand: "AuraFit",
-    category: "Casacas",
-    image: "https://loremflickr.com/400/500/jacket,streetwear?lock=17",
-    price: 169.9,
-    oldPrice: null,
-    desc: "Casaca cortaviento resistente con acabado premium.",
-    badge: "nuevo",
-    sizes: ["S", "M", "L", "XL"],
-    stock: 4,
-    colors: [
-      { name: "Café", hex: "#5a3d2d" },
-      { name: "Negro", hex: "#16161a" }
-    ]
-  },
-  {
-    id: 8,
-    name: "Compresor Seamless",
-    brand: "Breathe Divinity",
-    category: "Compresores",
-    image: "https://loremflickr.com/400/500/leggings,sport?lock=18",
-    price: 99.9,
-    oldPrice: 129.9,
-    desc: "Compresión media sin costuras, ideal para entrenar.",
-    badge: null,
-    sizes: ["S", "M", "L", "XL"],
-    stock: 18,
-    colors: [
-      { name: "Verde", hex: "#2d5a45" },
-      { name: "Grafito", hex: "#1f1f24" }
-    ]
-  },
-  {
-    id: 9,
-    name: "Jersey Calavera",
-    brand: "YoungLA",
-    category: "Jerseys",
-    image: "https://loremflickr.com/400/500/jersey,black?lock=19",
-    price: 79.9,
-    oldPrice: null,
-    desc: "Diseño calavera premium, cuello redondo y mangas cortas.",
-    badge: "agotado",
-    sizes: ["S", "M", "L", "XL"],
-    stock: 0,
-    colors: [
-      { name: "Púrpura", hex: "#5a2d4d" },
-      { name: "Negro", hex: "#16161a" }
-    ]
-  },
-  {
-    id: 10,
-    name: "Hoodie Crop Batik",
-    brand: "AuraFit",
-    category: "Hoodies",
-    image: "https://loremflickr.com/400/500/hoodie,fashion?lock=20",
-    price: 149.9,
-    oldPrice: 179.9,
-    desc: "Corte crop con estampado batik exclusivo de la colección.",
-    badge: "nuevo",
-    sizes: ["S", "M", "L"],
-    stock: 7,
-    colors: [
-      { name: "Arena", hex: "#5a4d2d" },
-      { name: "Grafito", hex: "#2d2d33" }
-    ]
-  }
-];
-
-async function ensureDataDir(): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
-async function readJSON<T>(name: string, fallback: T): Promise<T> {
-  try {
-    const raw = await fs.readFile(file(name), "utf-8");
-    const parsed = JSON.parse(raw);
-    return parsed === null || parsed === undefined ? fallback : parsed;
-  } catch {
-    return fallback;
+export class StockError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StockError";
   }
 }
 
-async function writeJSON(name: string, value: unknown): Promise<void> {
-  await ensureDataDir();
-  const target = file(name);
-  const temp = `${target}.tmp`;
-  await fs.writeFile(temp, JSON.stringify(value, null, 2), "utf-8");
-  await fs.rename(temp, target);
+export class InvalidOrderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidOrderError";
+  }
+}
+
+type ProductRow = Prisma.ProductGetPayload<true>;
+
+type OrderRow = Prisma.OrderGetPayload<true>;
+
+function toProduct(row: ProductRow): Product {
+  return {
+    id: row.id,
+    name: row.name,
+    brand: row.brand,
+    category: row.category,
+    image: row.image,
+    price: row.price,
+    oldPrice: row.oldPrice,
+    badge: row.badge,
+    desc: row.desc,
+    sizes: Array.isArray(row.sizes) ? (row.sizes as string[]) : [],
+    colors: Array.isArray(row.colors) ? (row.colors as Color[]) : [],
+    stock: row.stock
+  };
+}
+
+function toProductData(p: Product): Prisma.ProductUncheckedCreateInput {
+  return {
+    id: p.id,
+    name: p.name,
+    brand: p.brand,
+    category: p.category,
+    image: p.image ?? "",
+    price: p.price,
+    oldPrice: p.oldPrice ?? null,
+    badge: p.badge ?? null,
+    desc: p.desc ?? "",
+    sizes: p.sizes ?? [],
+    colors: p.colors ?? [],
+    stock: p.stock ?? 0
+  };
 }
 
 export async function getProducts(): Promise<Product[]> {
-  return readJSON("products.json", DEFAULT_PRODUCTS);
+  const rows = await prisma.product.findMany({ orderBy: { id: "asc" } });
+  return rows.map(toProduct);
 }
 
 export async function saveProducts(products: Product[]): Promise<void> {
-  await writeJSON("products.json", products);
+  await prisma.$transaction([
+    prisma.product.deleteMany(),
+    ...products.map((p) =>
+      prisma.product.upsert({
+        where: { id: p.id },
+        update: toProductData(p),
+        create: toProductData(p)
+      })
+    )
+  ]);
 }
 
 export async function getConfig(): Promise<Config> {
-  return readJSON("config.json", DEFAULT_CONFIG);
+  const row = await prisma.storeConfig.findUnique({ where: { id: 1 } });
+  if (!row) {
+    return { brand: "MiTienda", whatsapp: "59171234567", currency: "Bs", shipping: [] };
+  }
+  const shipping = Array.isArray(row.shipping) ? (row.shipping as Config["shipping"]) : [];
+  return { brand: row.brand, whatsapp: row.whatsapp, currency: row.currency, shipping };
 }
 
 export async function saveConfig(config: Config): Promise<void> {
-  await writeJSON("config.json", config);
+  await prisma.storeConfig.upsert({
+    where: { id: 1 },
+    update: {
+      brand: config.brand,
+      whatsapp: config.whatsapp,
+      currency: config.currency,
+      shipping: config.shipping ?? []
+    },
+    create: { id: 1, brand: config.brand, whatsapp: config.whatsapp, currency: config.currency, shipping: config.shipping ?? [] }
+  });
 }
 
 export async function getCoupons(): Promise<Record<string, Coupon>> {
-  return readJSON("coupons.json", DEFAULT_COUPONS);
+  const rows = await prisma.coupon.findMany({ orderBy: { code: "asc" } });
+  const map: Record<string, Coupon> = {};
+  for (const c of rows) map[c.code] = { type: (c.type as Coupon["type"]) || "percent", value: c.value };
+  return map;
 }
 
 export async function saveCoupons(coupons: Record<string, Coupon>): Promise<void> {
-  await writeJSON("coupons.json", coupons);
+  await prisma.$transaction([
+    prisma.coupon.deleteMany(),
+    ...Object.entries(coupons).map(([code, c]) =>
+      prisma.coupon.create({ data: { code, type: c.type, value: c.value } })
+    )
+  ]);
+}
+
+function toOrder(row: OrderRow): Order {
+  return {
+    id: row.id,
+    date: row.date.toISOString(),
+    items: Array.isArray(row.items) ? (row.items as OrderItem[]) : [],
+    coupon: row.coupon as Order["coupon"],
+    subtotal: row.subtotal,
+    discount: row.discount,
+    shipping: row.shipping,
+    total: row.total,
+    status: (row.status as OrderStatus) || "pendiente",
+    customer: row.customer as Customer
+  };
+}
+
+function orderData(o: Order): Prisma.OrderUncheckedCreateInput {
+  return {
+    id: o.id,
+    date: new Date(o.date),
+    items: o.items as Prisma.InputJsonValue,
+    coupon: o.coupon ? (o.coupon as Prisma.InputJsonValue) : Prisma.JsonNull,
+    subtotal: o.subtotal,
+    discount: o.discount,
+    shipping: o.shipping,
+    total: o.total,
+    status: o.status,
+    customer: o.customer as Prisma.InputJsonValue
+  };
 }
 
 export async function getOrders(): Promise<Order[]> {
-  return readJSON("orders.json", [] as Order[]);
+  const rows = await prisma.order.findMany({ orderBy: { date: "desc" } });
+  return rows.map(toOrder);
 }
 
-export async function saveOrders(orders: Order[]): Promise<void> {
-  await writeJSON("orders.json", orders);
+export async function createOrder(order: Order): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    for (const item of order.items) {
+      const product = await tx.product.findUnique({ where: { id: item.id } });
+      if (!product) continue;
+      const next = product.stock - item.qty;
+      if (next < 0) {
+        throw new StockError(`Stock insuficiente para "${product.name}"`);
+      }
+      await tx.product.update({ where: { id: item.id }, data: { stock: next } });
+    }
+    await tx.order.create({ data: orderData(order) });
+  });
 }
 
-export async function appendOrder(order: Order): Promise<void> {
-  const orders = await getOrders();
-  orders.unshift(order);
-  await saveOrders(orders);
+type RawOrderItem = {
+  key?: unknown;
+  id?: unknown;
+  size?: unknown;
+  color?: unknown;
+  qty?: unknown;
+};
+
+type RawOrderBody = {
+  items?: unknown;
+  coupon?: { code?: unknown } | null;
+  customer?: Partial<Customer> | null;
+};
+
+// Recalcula precios, cupón, envío y total en el servidor con datos de la BD.
+// No confía en los montos enviados por el cliente.
+export async function computeOrder(body: RawOrderBody): Promise<Order> {
+  const customer = body?.customer ?? {};
+  const nombre = String(customer.nombre ?? "").trim();
+  const telefono = String(customer.telefono ?? "").trim();
+  const ciudad = String(customer.ciudad ?? "").trim();
+  if (nombre.length < 2 || nombre.length > 120) {
+    throw new InvalidOrderError("Nombre inválido");
+  }
+  const digits = telefono.replace(/[\s\-().]/g, "");
+  if (!/^\+?\d{8,15}$/.test(digits)) {
+    throw new InvalidOrderError("Teléfono inválido");
+  }
+  if (ciudad && ciudad.length > 60) {
+    throw new InvalidOrderError("Ciudad inválida");
+  }
+  if (!Array.isArray(body?.items) || body.items.length === 0) {
+    throw new InvalidOrderError("Pedido vacío");
+  }
+  if (body.items.length > 50) {
+    throw new InvalidOrderError("Demasiados ítems en el pedido");
+  }
+
+  const products = new Map<number, Product>();
+  for (const p of await getProducts()) products.set(p.id, p);
+
+  const items: OrderItem[] = [];
+  for (const raw of body.items as RawOrderItem[]) {
+    const id = Math.trunc(Number(raw?.id));
+    if (!Number.isFinite(id)) throw new InvalidOrderError("Ítem inválido");
+    const product = products.get(id);
+    if (!product) throw new InvalidOrderError("Producto no encontrado");
+    const qty = Math.trunc(Number(raw?.qty));
+    if (!Number.isFinite(qty) || qty < 1) throw new InvalidOrderError("Cantidad inválida");
+    if (qty > 99) throw new InvalidOrderError("Cantidad fuera de rango");
+    const size = String(raw?.size ?? "").trim();
+    const color = String(raw?.color ?? "").trim();
+    items.push({
+      key: String(raw?.key ?? `${id}|${size}|${color}`),
+      id,
+      name: product.name,
+      size,
+      color,
+      qty,
+      price: product.price
+    });
+  }
+
+  const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
+
+  let coupon: Order["coupon"] | null = null;
+  let discount = 0;
+  const code = String(body?.coupon?.code ?? "").trim().toUpperCase();
+  if (code) {
+    const c = (await getCoupons())[code];
+    if (c && (c.type === "percent" || c.type === "fixed") && c.value >= 0) {
+      coupon = { code, type: c.type, value: c.value };
+      discount = c.type === "fixed" ? Math.min(c.value, subtotal) : (subtotal * c.value) / 100;
+    }
+  }
+
+  const config = await getConfig();
+  const ciudadLower = ciudad.toLowerCase();
+  const match =
+    config.shipping.find((r) => r.ciudad.trim().toLowerCase() === ciudadLower) ||
+    config.shipping.find((r) => r.ciudad.trim().toLowerCase() === "default");
+  const shipping = Math.max(0, Number(match?.precio) || 0);
+
+  const total = Math.max(0, subtotal - discount + shipping);
+
+  return {
+    id: `PED-${Date.now().toString(36).toUpperCase()}`,
+    date: new Date().toISOString(),
+    items,
+    coupon,
+    subtotal,
+    discount,
+    shipping,
+    total,
+    status: "pendiente",
+    customer: { nombre, telefono, ciudad }
+  };
+}
+
+export async function updateOrderStatus(id: string, status: OrderStatus): Promise<void> {
+  const order = await prisma.order.findUnique({ where: { id } });
+  if (!order) throw new Error("Pedido no encontrado");
+
+  const restoring = status === "cancelado" && order.status !== "cancelado" && !order.stockRestored;
+
+  await prisma.$transaction(async (tx) => {
+    if (restoring) {
+      for (const item of order.items as OrderItem[]) {
+        const product = await tx.product.findUnique({ where: { id: item.id } });
+        if (product) {
+          await tx.product.update({
+            where: { id: item.id },
+            data: { stock: product.stock + item.qty }
+          });
+        }
+      }
+    }
+    await tx.order.update({
+      where: { id },
+      data: { status, ...(restoring ? { stockRestored: true } : {}) }
+    });
+  });
 }
 
 export async function getAdmin(): Promise<AdminConfig> {
-  return readJSON("admin.json", { passwordHash: "", salt: "" });
+  const row = await prisma.admin.findUnique({ where: { id: 1 } });
+  return row ? { passwordHash: row.passwordHash, salt: row.salt } : { passwordHash: "", salt: "" };
 }
 
 export async function saveAdmin(admin: AdminConfig): Promise<void> {
-  await writeJSON("admin.json", admin);
+  await prisma.admin.upsert({ where: { id: 1 }, update: admin, create: { id: 1, ...admin } });
 }
 
 export function nextProductId(products: Product[]): number {

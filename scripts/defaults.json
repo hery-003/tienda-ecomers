@@ -1,0 +1,288 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "Jersey Premium Oversize",
+      "brand": "AuraFit",
+      "category": "Jerseys",
+      "image": "https://loremflickr.com/400/500/jersey,sport?lock=11",
+      "price": 79.9,
+      "oldPrice": 99,
+      "badge": "nuevo",
+      "desc": "Tela dry-fit premium, corte oversize y estampado a todo color.",
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "colors": [
+        {
+          "name": "veder",
+          "hex": "#16161a"
+        }
+      ],
+      "stock": 12
+    },
+    {
+      "id": 2,
+      "name": "Hoodie Pesada Oversize",
+      "brand": "AuraFit",
+      "category": "Hoodies",
+      "image": "https://loremflickr.com/400/500/hoodie,streetwear?lock=12",
+      "price": 129.9,
+      "oldPrice": null,
+      "desc": "Algodón pesado 400gsm, capucha doble y bolsillo canguro.",
+      "badge": "nuevo",
+      "sizes": [
+        "XS",
+        "S",
+        "M",
+        "L",
+        "XL",
+        "XXL"
+      ],
+      "stock": 8,
+      "colors": [
+        {
+          "name": "Café",
+          "hex": "#6b5b3e"
+        },
+        {
+          "name": "Grafito",
+          "hex": "#1f1f24"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Boxi Estampado Frontal",
+      "brand": "YoungLA",
+      "category": "Boxis",
+      "image": "https://loremflickr.com/400/500/t-shirt,streetwear?lock=13",
+      "price": 79.9,
+      "oldPrice": 89.9,
+      "desc": "Estampado serigrafía frontal, tacto suave y cómodo.",
+      "badge": null,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "XXL"
+      ],
+      "stock": 15,
+      "colors": [
+        {
+          "name": "Bordó",
+          "hex": "#5a2d2d"
+        },
+        {
+          "name": "Negro",
+          "hex": "#16161a"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Baggi 3 Hilos Pesado",
+      "brand": "YoungLA",
+      "category": "Baggis",
+      "image": "https://loremflickr.com/400/500/joggers,pants?lock=14",
+      "price": 179.9,
+      "oldPrice": null,
+      "desc": "Tres hilos pesados con logo metálico y bolsillos amplios.",
+      "badge": null,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "stock": 6,
+      "colors": [
+        {
+          "name": "Azul",
+          "hex": "#2d3e5a"
+        },
+        {
+          "name": "Negro",
+          "hex": "#16161a"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Tank Top Gym",
+      "brand": "AuraFit",
+      "category": "Tank tops",
+      "image": "https://loremflickr.com/400/500/tank-top,gym?lock=15",
+      "price": 79.9,
+      "oldPrice": 89.9,
+      "desc": "Sin mangas, ligero y transpirable para tus entrenamientos.",
+      "badge": null,
+      "sizes": [
+        "S",
+        "M",
+        "L"
+      ],
+      "stock": 20,
+      "colors": [
+        {
+          "name": "Oliva",
+          "hex": "#4d5a2d"
+        },
+        {
+          "name": "Negro",
+          "hex": "#16161a"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Short Deportivo",
+      "brand": "Breathe Divinity",
+      "category": "Shorts",
+      "image": "https://loremflickr.com/400/500/shorts,sport?lock=16",
+      "price": 69.9,
+      "oldPrice": 79.9,
+      "desc": "Short con malla interior, bolsillos con cierre y tela elástica.",
+      "badge": null,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "stock": 10,
+      "colors": [
+        {
+          "name": "Violeta",
+          "hex": "#3e2d5a"
+        },
+        {
+          "name": "Grafito",
+          "hex": "#1f1f24"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Casaca Trucker",
+      "brand": "AuraFit",
+      "category": "Casacas",
+      "image": "https://loremflickr.com/400/500/jacket,streetwear?lock=17",
+      "price": 169.9,
+      "oldPrice": null,
+      "desc": "Casaca cortaviento resistente con acabado premium.",
+      "badge": "nuevo",
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "stock": 4,
+      "colors": [
+        {
+          "name": "Café",
+          "hex": "#5a3d2d"
+        },
+        {
+          "name": "Negro",
+          "hex": "#16161a"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Compresor Seamless",
+      "brand": "Breathe Divinity",
+      "category": "Compresores",
+      "image": "https://loremflickr.com/400/500/leggings,sport?lock=18",
+      "price": 99.9,
+      "oldPrice": 129.9,
+      "desc": "Compresión media sin costuras, ideal para entrenar.",
+      "badge": null,
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "stock": 18,
+      "colors": [
+        {
+          "name": "Verde",
+          "hex": "#2d5a45"
+        },
+        {
+          "name": "Grafito",
+          "hex": "#1f1f24"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Jersey Calavera",
+      "brand": "YoungLA",
+      "category": "Jerseys",
+      "image": "https://loremflickr.com/400/500/jersey,black?lock=19",
+      "price": 79.9,
+      "oldPrice": null,
+      "desc": "Diseño calavera premium, cuello redondo y mangas cortas.",
+      "badge": "agotado",
+      "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+      ],
+      "stock": 0,
+      "colors": [
+        {
+          "name": "Púrpura",
+          "hex": "#5a2d4d"
+        },
+        {
+          "name": "Negro",
+          "hex": "#16161a"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Hoodie Crop Batik",
+      "brand": "AuraFit",
+      "category": "Hoodies",
+      "image": "https://loremflickr.com/400/500/hoodie,fashion?lock=20",
+      "price": 149.9,
+      "oldPrice": 179.9,
+      "desc": "Corte crop con estampado batik exclusivo de la colección.",
+      "badge": "nuevo",
+      "sizes": [
+        "S",
+        "M",
+        "L"
+      ],
+      "stock": 7,
+      "colors": [
+        {
+          "name": "Arena",
+          "hex": "#5a4d2d"
+        },
+        {
+          "name": "Grafito",
+          "hex": "#2d2d33"
+        }
+      ]
+    }
+  ],
+  "config": {
+    "brand": "MiTienda",
+    "whatsapp": "59171234567",
+    "currency": "Bs",
+    "shipping": []
+  },
+  "coupons": {}
+}

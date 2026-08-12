@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrders, appendOrder } from "@/lib/store";
+import { computeOrder, createOrder, getOrders, InvalidOrderError, StockError, type Order } from "@/lib/store";
 import { isAuthed } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -13,23 +13,25 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  if (!body || !Array.isArray(body.items) || body.items.length === 0) {
-    return NextResponse.json({ error: "Pedido vacío" }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
+
+  let order: Order;
+  try {
+    order = await computeOrder(body);
+  } catch (err) {
+    if (err instanceof InvalidOrderError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Error al procesar el pedido" }, { status: 500 });
   }
-  if (!body.customer || !body.customer.nombre || !body.customer.telefono) {
-    return NextResponse.json({ error: "Datos de envío incompletos" }, { status: 400 });
+
+  try {
+    await createOrder(order);
+  } catch (err) {
+    if (err instanceof StockError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Error al registrar el pedido" }, { status: 500 });
   }
-  const order = {
-    id: `PED-${Date.now().toString(36).toUpperCase()}`,
-    date: new Date().toISOString(),
-    items: body.items,
-    coupon: body.coupon || null,
-    subtotal: Number(body.subtotal) || 0,
-    discount: Number(body.discount) || 0,
-    total: Number(body.total) || 0,
-    customer: body.customer
-  };
-  await appendOrder(order);
   return NextResponse.json(order, { status: 201 });
 }

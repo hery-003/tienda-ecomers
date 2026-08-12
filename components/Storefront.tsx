@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { productImg, productImage, luminance, CATEGORY_EMOJI } from "@/lib/productImage";
 import type { Product } from "@/lib/productImage";
@@ -65,10 +67,11 @@ export default function Storefront({
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartCoupon, setCartCoupon] = useState<{ code: string; type: string; value: number } | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
 
   const [cartOpen, setCartOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [quickviewId, setQuickviewId] = useState<number | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -77,6 +80,7 @@ export default function Storefront({
   const [couponInput, setCouponInput] = useState("");
   const [couponMsg, setCouponMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [formError, setFormError] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<Customer>({ nombre: "", telefono: "", ciudad: "" });
 
@@ -86,13 +90,14 @@ export default function Storefront({
   useEffect(() => {
     const load = () => {
       setCartItems(
-        loadJSON<CartItem[]>(STORAGE.cart, []).map((i) => ({
-          ...i,
-          key: i.key || `${i.id}|${i.size || "M"}|${i.color || ""}`
-        }))
+        loadJSON<CartItem[]>(STORAGE.cart, [])
+          .map((i) => ({
+            ...i,
+            key: i.key || `${i.id}|${i.size || "M"}|${i.color || ""}`
+          }))
+          .filter((i: CartItem) => productById(i.id))
       );
       setCartCoupon(loadJSON(STORAGE.coupon, null));
-      setCustomer(loadJSON(STORAGE.customer, null));
     };
     load();
     window.addEventListener("mitienda-cart-updated", load);
@@ -203,7 +208,7 @@ export default function Storefront({
   const bumpCart = () => setBump((b) => b + 1);
 
   // Overlay / scroll lock
-  const anyOpen = cartOpen || checkoutOpen || quickviewId !== null;
+  const anyOpen = cartOpen || checkoutOpen || quickviewId !== null || menuOpen;
   useEffect(() => {
     document.body.style.overflow = anyOpen || successOpen ? "hidden" : "";
     return () => {
@@ -214,7 +219,7 @@ export default function Storefront({
   const getSelection = (id: number) => {
     const p = productById(id);
     if (!p) return { size: "", color: "" };
-    return selection[id] || { size: p.sizes[0], color: p.colors[0].hex };
+    return selection[id] || { size: p.sizes[0] || "", color: p.colors[0]?.hex || "" };
   };
 
   const setSelectionField = (id: number, field: "size" | "color", value: string) => {
@@ -278,7 +283,21 @@ export default function Storefront({
     if (cartCoupon.type === "fixed") return Math.min(cartCoupon.value, subtotal);
     return (subtotal * cartCoupon.value) / 100;
   }, [cartCoupon, subtotal]);
-  const total = Math.max(0, subtotal - discount);
+
+  const shippingFor = useCallback(
+    (ciudad: string) => {
+      const rules = config.shipping || [];
+      const city = ciudad.trim().toLowerCase();
+      const match =
+        rules.find((r) => r.ciudad.trim().toLowerCase() === city) ||
+        rules.find((r) => r.ciudad.trim().toLowerCase() === "default");
+      return match ? match.precio : 0;
+    },
+    [config.shipping]
+  );
+
+  const shipping = shippingFor(formData.ciudad);
+  const total = Math.max(0, subtotal - discount + shipping);
 
   const colorName = (item: CartItem) => {
     const p = productById(item.id);
@@ -292,7 +311,11 @@ export default function Storefront({
     const code = couponInput.trim().toUpperCase();
     if (code && coupons[code]) {
       setCartCoupon({ code, ...coupons[code] });
-      setCouponMsg({ text: `✓ Cupón ${code} aplicado (${coupons[code].value}% de descuento).`, ok: true });
+      const label =
+        coupons[code].type === "fixed"
+          ? `${coupons[code].value} de descuento`
+          : `${coupons[code].value}% de descuento`;
+      setCouponMsg({ text: `✓ Cupón ${code} aplicado (${label}).`, ok: true });
     } else if (!code) {
       setCartCoupon(null);
       setCouponMsg({ text: "Ingresa un código de cupón.", ok: false });
@@ -302,7 +325,16 @@ export default function Storefront({
     }
   };
 
-  const buildMessage = (nombre: string, telefono: string, ciudad: string) => {
+  type OrderTotals = {
+    subtotal: number;
+    discount: number;
+    shipping: number;
+    total: number;
+    coupon: { code: string; type: string; value: number } | null;
+  };
+
+  const buildMessage = (nombre: string, telefono: string, ciudad: string, server?: OrderTotals | null) => {
+    const t = server ?? { subtotal, discount, shipping, total, coupon: cartCoupon };
     const lines: string[] = [];
     lines.push(`🛒 *NUEVO PEDIDO · ${config.brand}*`);
     lines.push("");
@@ -318,11 +350,16 @@ export default function Storefront({
       lines.push(`    🔢 Cantidad: ${i.qty} × ${money(p.price)} = ${money(p.price * i.qty)}`);
     });
     lines.push("");
-    lines.push(`💵 *Subtotal:* ${money(subtotal)}`);
-    if (cartCoupon) {
-      lines.push(`🏷️ *Descuento (${cartCoupon.code}):* -${money(discount)}`);
+    lines.push(`💵 *Subtotal:* ${money(t.subtotal)}`);
+    if (t.coupon) {
+      lines.push(`🏷️ *Descuento (${t.coupon.code}):* -${money(t.discount)}`);
     }
-    lines.push(`🧾 *TOTAL:* ${money(total)}`);
+    if (t.shipping > 0) {
+      lines.push(`🚚 *Envío:* ${money(t.shipping)}`);
+    } else {
+      lines.push(`🚚 *Envío:* Gratis`);
+    }
+    lines.push(`🧾 *TOTAL:* ${money(t.total)}`);
     lines.push("");
     lines.push(`🚚 *Datos de envío*`);
     lines.push(`🧍 Nombre: ${nombre}`);
@@ -356,15 +393,18 @@ export default function Storefront({
 
   const submitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     setFormError(false);
+    setOrderError(null);
     if (!validate()) {
       setFormError(true);
+      setSubmitting(false);
       return;
     }
     const nombre = formData.nombre.trim();
     const telefono = formData.telefono.trim();
     const ciudad = formData.ciudad.trim();
-    setCustomer({ nombre, telefono, ciudad });
     saveJSON(STORAGE.customer, { nombre, telefono, ciudad });
 
     const items = cartItems
@@ -374,24 +414,35 @@ export default function Storefront({
       })
       .filter(Boolean);
 
+    let serverOrder: OrderTotals | null = null;
+    let failed = "";
     try {
-      await fetch("/api/orders", {
+      const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items,
           coupon: cartCoupon,
-          subtotal,
-          discount,
-          total,
           customer: { nombre, telefono, ciudad }
         })
       });
+      if (res.ok) {
+        serverOrder = (await res.json().catch(() => null)) as OrderTotals | null;
+      } else {
+        const data = await res.json().catch(() => ({}));
+        failed = (data && data.error) || "No se pudo registrar el pedido.";
+      }
     } catch {
-      // El pedido igual se envía por WhatsApp aunque falle el registro local
+      // Fallo de red: igual se envía por WhatsApp y el vendedor captura el pedido manualmente
     }
 
-    const msg = buildMessage(nombre, telefono, ciudad);
+    if (failed) {
+      setOrderError(failed);
+      setSubmitting(false);
+      return;
+    }
+
+    const msg = buildMessage(nombre, telefono, ciudad, serverOrder);
     window.open(`https://wa.me/${config.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
 
     setCartItems([]);
@@ -401,6 +452,7 @@ export default function Storefront({
     setCouponMsg(null);
     setCheckoutOpen(false);
     setSuccessOpen(true);
+    setSubmitting(false);
   };
 
   const wa = `https://wa.me/${config.whatsapp}?text=${encodeURIComponent(`Hola ${config.brand}, quisiera más información.`)}`;
@@ -423,10 +475,10 @@ export default function Storefront({
           <a href="#" className="brand" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
             {config.brand}
           </a>
-          <nav className="nav" id="nav">
-            <a href="#inicio" className="nav__link">Inicio</a>
-            <a href="#catalogo" className="nav__link">Catálogo</a>
-            <a href="#contacto" className="nav__link">Contacto</a>
+          <nav className={`nav${menuOpen ? " open" : ""}`} id="nav">
+            <a href="#inicio" className="nav__link" onClick={() => setMenuOpen(false)}>Inicio</a>
+            <a href="#catalogo" className="nav__link" onClick={() => setMenuOpen(false)}>Catálogo</a>
+            <a href="#contacto" className="nav__link" onClick={() => setMenuOpen(false)}>Contacto</a>
           </nav>
           <div className="header__actions">
             <div className="socials socials--header">
@@ -440,7 +492,15 @@ export default function Storefront({
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.6 5.8A4.8 4.8 0 0 1 15 3h-3v13.2a2.6 2.6 0 1 1-2.2-2.6V10.5a5.6 5.6 0 1 0 4.9 5.5V9.4a7.8 7.8 0 0 0 4.5 1.4V7.9a4.8 4.8 0 0 1-2.6-2.1z"/></svg>
               </a>
             </div>
-            <button className={`cart-btn${bump ? " bump" : ""}`} aria-label="Abrir carrito" onClick={() => { setCartOpen(true); }}>
+            <button
+              className={`nav-toggle${menuOpen ? " open" : ""}`}
+              aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((m) => !m)}
+            >
+              <span></span><span></span><span></span>
+            </button>
+            <button className={`cart-btn${bump ? " bump" : ""}`} aria-label="Abrir carrito" onClick={() => { setCartOpen(true); setMenuOpen(false); }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="9" cy="21" r="1"></circle>
                 <circle cx="20" cy="21" r="1"></circle>
@@ -611,12 +671,12 @@ export default function Storefront({
             <a href="#">Términos</a>
             <a href="#">Privacidad</a>
             <a href="#">Cookies</a>
-            <a href="/admin">Admin</a>
+            <Link href="/admin">Admin</Link>
           </div>
         </div>
       </footer>
 
-      {anyOpen && <div className="overlay" onClick={() => { setCartOpen(false); setCheckoutOpen(false); setQuickviewId(null); }}></div>}
+      {anyOpen && <div className="overlay" onClick={() => { setCartOpen(false); setCheckoutOpen(false); setQuickviewId(null); setMenuOpen(false); }}></div>}
 
       {cartOpen && (
         <aside className="cart-drawer" aria-label="Carrito de compras">
@@ -639,7 +699,7 @@ export default function Storefront({
                 if (i.color) meta.push(`<b>Color:</b> ${esc(colorName(i))}`);
                 return (
                   <div className="cart-item" key={i.key}>
-                    <div className="cart-item__img"><img src={productImg(p)} alt={p.name} /></div>
+                    <div className="cart-item__img"><Image unoptimized src={productImg(p)} alt={p.name} width={64} height={64} /></div>
                     <div className="cart-item__info">
                       <div className="cart-item__name">{p.name}</div>
                       {meta.length > 0 && <div className="cart-item__meta" dangerouslySetInnerHTML={{ __html: meta.join(" · ") }} />}
@@ -699,6 +759,7 @@ export default function Storefront({
               })}
               <div className="modal__summary-row modal__summary-sub"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
               {cartCoupon && <div className="modal__summary-row modal__summary-discount"><span>Descuento ({cartCoupon.code})</span><strong>-{money(discount)}</strong></div>}
+              <div className="modal__summary-row modal__summary-ship"><span>Envío</span><strong>{shipping > 0 ? money(shipping) : "Gratis"}</strong></div>
               <div className="modal__summary-row modal__summary-total"><span>Total</span><strong>{money(total)}</strong></div>
             </div>
             <div className="coupon">
@@ -756,7 +817,10 @@ export default function Storefront({
                 {fieldErrors.ciudad && <small className="field-hint">{fieldErrors.ciudad}</small>}
               </label>
               {formError && <p className="modal__error">Revisa los campos marcados en rojo.</p>}
-              <button type="submit" className="btn btn--primary btn--block">Confirmar por WhatsApp</button>
+              {orderError && <p className="modal__error">{orderError}</p>}
+              <button type="submit" className="btn btn--primary btn--block" disabled={submitting}>
+                {submitting ? "Enviando pedido…" : "Confirmar por WhatsApp"}
+              </button>
             </form>
           </div>
         </div>
@@ -764,6 +828,7 @@ export default function Storefront({
 
       {quickviewProduct && (
         <QuickView
+          key={quickviewProduct.id}
           product={quickviewProduct}
           money={money}
           getSelection={getSelection}
@@ -835,7 +900,7 @@ function ProductCard({
       onMouseLeave={onLeave}
     >
       <div className="card__media" onClick={onQuickView}>
-        <img src={productImg(p)} alt={p.name} loading="lazy" />
+        <Image unoptimized src={productImg(p)} alt={p.name} width={200} height={200} loading="lazy" />
         {p.badge === "nuevo" && <span className="badge badge--nuevo">Nuevo</span>}
         {soldOut && <span className="badge badge--agotado">Agotado</span>}
         {lowStock && <span className="badge badge--stock">¡Últimas {p.stock}!</span>}
@@ -912,12 +977,6 @@ function QuickView({
   const soldOut = p.badge === "agotado" || (p.stock ?? Infinity) <= 0;
   const lowStock = !soldOut && (p.stock ?? Infinity) <= 5;
 
-  useEffect(() => {
-    setQty(1);
-    setSelColor(getSelection(p.id).color);
-    setSelSize(getSelection(p.id).size);
-  }, [p.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="quickview-title">
       <div className="modal__content modal__content--quickview">
@@ -927,7 +986,7 @@ function QuickView({
         </div>
         <div className="quickview">
           <div className="quickview__media">
-            <img src={p.image ? p.image : productImage(p.category, selColor)} alt={p.name} />
+            <Image unoptimized src={p.image ? p.image : productImage(p.category, selColor)} alt={p.name} width={400} height={300} />
             {p.badge === "nuevo" && <span className="badge badge--nuevo">Nuevo</span>}
             {soldOut && <span className="badge badge--agotado">Agotado</span>}
             {lowStock && <span className="badge badge--stock">¡Últimas {p.stock}!</span>}
@@ -936,7 +995,7 @@ function QuickView({
             <span className="card__category">{p.category}</span>
             <span className="card__brand">{p.brand}</span>
         <h3 className="card__title">
-          <a href={`/producto/${p.id}`} onClick={(e) => e.stopPropagation()}>{p.name}</a>
+          <Link href={`/producto/${p.id}`} onClick={(e) => e.stopPropagation()}>{p.name}</Link>
         </h3>
             <div className="card__price-row">
               <span className="card__price">{money(p.price)}</span>

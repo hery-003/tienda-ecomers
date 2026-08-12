@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!(await isAuthed())) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const code = String(body.code || "").trim().toUpperCase();
   const type = body.type === "fixed" ? "fixed" : "percent";
   const value = Number(body.value);

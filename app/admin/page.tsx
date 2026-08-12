@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function AdminPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 40, color: "#9b9ba1" }}>Cargando panel…</div>}>
+    <Suspense fallback={<div style={{ padding: 40, color: "#ab9b8d" }}>Cargando panel…</div>}>
       <AdminGate />
     </Suspense>
   );

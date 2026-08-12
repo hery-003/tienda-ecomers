@@ -4,9 +4,11 @@ import { login, createSessionToken, AUTH_COOKIE, checkRateLimit, recordFailedAtt
 export const dynamic = "force-dynamic";
 
 function clientIp(req: NextRequest): string {
+  const real = req.headers.get("x-real-ip");
+  if (real) return real.trim();
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
-  return req.headers.get("x-real-ip") || "unknown";
+  return "unknown";
 }
 
 export async function POST(req: NextRequest) {
@@ -23,9 +25,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const result = await login(String(body.password || ""));
+  const password = String(body.password || "");
+  const result = await login(password);
   if (!result.ok) {
-    recordFailedAttempt(ip);
+    if (password) recordFailedAttempt(ip);
     return NextResponse.json({ error: result.message }, { status: 401 });
   }
 

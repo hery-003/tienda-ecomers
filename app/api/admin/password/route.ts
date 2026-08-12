@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { login, isAuthed } from "@/lib/auth";
 import { saveAdmin } from "@/lib/store";
-import { createHash, randomBytes } from "node:crypto";
 
 export const dynamic = "force-dynamic";
-
-function hashPassword(password: string, salt: string): string {
-  return createHash("sha256").update(salt + password).digest("hex");
-}
 
 export async function POST(req: NextRequest) {
   if (!(await isAuthed())) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   const current = String(body.current || "");
   const next = String(body.next || "");
 
@@ -25,7 +21,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "La nueva contraseña debe tener al menos 6 caracteres" }, { status: 400 });
   }
 
-  const salt = randomBytes(16).toString("hex");
-  await saveAdmin({ passwordHash: hashPassword(next, salt), salt });
+  const passwordHash = await bcrypt.hash(next, 10);
+  await saveAdmin({ passwordHash, salt: "" });
   return NextResponse.json({ ok: true, message: "Contraseña actualizada" });
 }

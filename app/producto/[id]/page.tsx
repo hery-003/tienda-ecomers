@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import ProductBuy from "@/components/ProductBuy";
@@ -17,10 +19,10 @@ export default async function ProductPage(props: PageProps<"/producto/[id]">) {
 
   return (
     <div className="product-page container">
-      <a href="/" className="product-back">← Volver a la tienda</a>
+      <Link href="/" className="product-back">← Volver a la tienda</Link>
       <div className="product-detail">
         <div className="product-detail__media">
-          <img src={productImg(product)} alt={product.name} />
+          <Image unoptimized src={productImg(product)} alt={product.name} width={200} height={200} />
         </div>
         <div className="product-detail__body">
           <span className="product-detail__category">{product.category}</span>
